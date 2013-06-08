@@ -271,9 +271,10 @@ void plClothingItem::clearElements() {
     fElementNames.clear();
 }
 
-void plClothingItem::addElement(const plString& elementName) {
+int plClothingItem::addElement(const plString& elementName) {
     fElementNames.push_back(elementName);
     fTextures.push_back(new plKey[kLayerMax]);
+    return fElementNames.size() - 1;
 }
 
 void plClothingItem::delElement(int element) {

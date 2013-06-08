@@ -20,6 +20,7 @@
 #include "../KeyedObject/pyKey.h"
 #include "../KeyedObject/pyKeyedObject.h"
 #include "../pyCreatable.h"
+#include "Sys/pyColor.h"
 
 extern "C" {
 
@@ -32,12 +33,79 @@ static PyObject* pyClothingItem_new(PyTypeObject* type, PyObject* args, PyObject
     return (PyObject*)self;
 }
 
+static PyObject* pyClothingItem_addElement(pyClothingItem* self, PyObject* args) {
+    PyObject* element;
+    if (!PyArg_ParseTuple(args, "O", &element) || !PyAnyStr_Check(element)) {
+        PyErr_SetString(PyExc_TypeError, "addElement expects string");
+        return NULL;
+    }
+    return PyInt_FromLong(self->fThis->addElement(PyStr_To_PlStr(element)));
+}
+
+static PyObject* pyClothingItem_clearElements(pyClothingItem* self) {
+    self->fThis->clearElements();
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject* pyClothingItem_delElement(pyClothingItem* self, PyObject* args) {
+    int element;
+    if (!PyArg_ParseTuple(args, "i", &element)) {
+        PyErr_SetString(PyExc_TypeError, "delElement expects int");
+        return NULL;
+    }
+    self->fThis->delElement(element);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject* pyClothingItem_getAccessory(pyClothingItem* self, void*) {
+    return pyKey_FromKey(self->fThis->getAccessory());
+}
+
+static PyObject* pyClothingItem_getCustomText(pyClothingItem* self, void*) {
+    return PlStr_To_PyStr(self->fThis->getCustomText());
+}
+
+static PyObject* pyClothingItem_getDefaultTint1(pyClothingItem* self, void*) {
+    return pyColorRGBA_FromColorRGBA(self->fThis->getDefaultTint1());
+}
+
+static PyObject* pyClothingItem_getDefaultTint2(pyClothingItem* self, void*) {
+    return pyColorRGBA_FromColorRGBA(self->fThis->getDefaultTint2());
+}
+
 static PyObject* pyClothingItem_getDescription(pyClothingItem* self, void* closure) {
     return PlStr_To_PyStr(self->fThis->getDescription());
 }
 
-static PyObject* pyClothingItem_getItemName(pyClothingItem* self, void* closure) {
+static PyObject* pyClothingItem_getElementTexture(pyClothingItem* self, PyObject* args) {
+    int element, layer;
+    if (!PyArg_ParseTuple(args, "ii", &element, &layer)) {
+        PyErr_SetString(PyExc_TypeError, "getElementTexture expects int, int");
+        return NULL;
+    }
+
+    return pyKey_FromKey(self->fThis->getElementTexture(element, layer));
+}
+
+static PyObject* pyClothingItem_getElements(pyClothingItem* self) {
+    PyObject* set = PyTuple_New(self->fThis->getElementCount());
+    for (int i = 0; i < self->fThis->getElementCount(); ++i)
+        PyTuple_SET_ITEM(set, i, PlStr_To_PyStr(self->fThis->getElementName(i)));
+    return set;
+}
+
+static PyObject* pyClothingItem_getGroup(pyClothingItem* self, void*) {
+    return PyInt_FromLong(self->fThis->getGroup());
+}
+
+static PyObject* pyClothingItem_getItemName(pyClothingItem* self, void*) {
     return PlStr_To_PyStr(self->fThis->getItemName());
+}
+
+static PyObject* pyClothingItem_getIcon(pyClothingItem* self, void*) {
+    return pyKey_FromKey(self->fThis->getIcon());
 }
 
 static PyObject* pyClothingItem_getMesh(pyClothingItem* self, PyObject* args) {
@@ -48,6 +116,54 @@ static PyObject* pyClothingItem_getMesh(pyClothingItem* self, PyObject* args) {
     }
 
     return pyKey_FromKey(self->fThis->getMesh(lod));
+}
+
+static PyObject* pyClothingItem_getSortOrder(pyClothingItem* self, void*) {
+    return PyInt_FromLong(self->fThis->getSortOrder());
+}
+
+static PyObject* pyClothingItem_getTileset(pyClothingItem* self, void*) {
+    return PyInt_FromLong(self->fThis->getTileset());
+}
+
+static int pyClothingItem_setAccessory(pyClothingItem* self, PyObject* value, void*) {
+    if (!pyKey_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "accessory must be a plKey");
+        return -1;
+    }
+    self->fThis->setAccessory(*((pyKey*)value)->fThis);
+    return 0;
+}
+
+static int pyClothingItem_setCustomText(pyClothingItem* self, PyObject* value, void*) {
+    if (value == NULL) {
+        self->fThis->setDescription("");
+    } else {
+        if (!PyAnyStr_Check(value)) {
+            PyErr_SetString(PyExc_TypeError, "customText must be a string");
+            return -1;
+        }
+        self->fThis->setCustomText(PyStr_To_PlStr(value));
+    }
+    return 0;
+}
+
+static int pyClothingItem_setDefaultTint1(pyClothingItem* self, PyObject* value, void*) {
+    if (!pyColorRGBA_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "defaultTint1 must be an hsColorRGBA");
+        return -1;
+    }
+    self->fThis->setDefaultTint1(*((pyColorRGBA*)value)->fThis);
+    return 0;
+}
+
+static int pyClothingItem_setDefaultTint2(pyClothingItem* self, PyObject* value, void*) {
+    if (!pyColorRGBA_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "defaultTint2 must be an hsColorRGBA");
+        return -1;
+    }
+    self->fThis->setDefaultTint2(*((pyColorRGBA*)value)->fThis);
+    return 0;
 }
 
 static int pyClothingItem_setDescription(pyClothingItem* self, PyObject* value, void* closure) {
@@ -63,7 +179,43 @@ static int pyClothingItem_setDescription(pyClothingItem* self, PyObject* value, 
     return 0;
 }
 
-static int pyClothingItem_setItemName(pyClothingItem* self, PyObject* value, void* closure) {
+static PyObject* pyClothingItem_setElementTexture(pyClothingItem* self, PyObject* args) {
+    int element, layer;
+    pyKey* key;
+
+    if (!PyArg_ParseTuple(args, "iiO", &element, &layer, &key)) {
+        PyErr_SetString(PyExc_TypeError, "setElementTexture expects int, int plKey");
+        return NULL;
+    }
+    if (!pyKey_Check((PyObject*)key)) {
+        PyErr_SetString(PyExc_TypeError, "setElementTexture expects int, int plKey");
+        return NULL;
+    }
+
+    self->fThis->setElementTexture(element, layer, *key->fThis);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static int pyClothingItem_setGroup(pyClothingItem* self, PyObject* value, void*) {
+    if (!PyInt_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "group must be an int");
+        return -1;
+    }
+    self->fThis->setGroup(PyInt_AsLong(value));
+    return 0;
+}
+
+static int pyClothingItem_setIcon(pyClothingItem* self, PyObject* value, void*) {
+    if (!pyKey_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "icon must be a plKey");
+        return -1;
+    }
+    self->fThis->setIcon(*((pyKey*)value)->fThis);
+    return 0;
+}
+
+static int pyClothingItem_setItemName(pyClothingItem* self, PyObject* value, void*) {
     if (value == NULL) {
         self->fThis->setItemName("");
     } else {
@@ -81,11 +233,11 @@ static PyObject* pyClothingItem_setMesh(pyClothingItem* self, PyObject* args) {
     pyKey* key;
 
     if (!PyArg_ParseTuple(args, "iO", &lod, &key)) {
-        PyErr_SetString(PyExc_TypeError, "read expects int, plKey");
+        PyErr_SetString(PyExc_TypeError, "setMesh expects int, plKey");
         return NULL;
     }
     if (!pyKey_Check((PyObject*)key)) {
-        PyErr_SetString(PyExc_TypeError, "read expects hsStream, plResManager");
+        PyErr_SetString(PyExc_TypeError, "setMesh expects int, plKey");
         return NULL;
     }
 
@@ -94,10 +246,44 @@ static PyObject* pyClothingItem_setMesh(pyClothingItem* self, PyObject* args) {
     return Py_None;
 }
 
+static int pyClothingItem_setSortOrder(pyClothingItem* self, PyObject* value, void*) {
+    if (!PyInt_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "sortOrder must be an int");
+        return -1;
+    }
+    self->fThis->setSortOrder(PyInt_AsLong(value));
+    return 0;
+}
+
+static int pyClothingItem_setTileset(pyClothingItem* self, PyObject* value, void*) {
+    if (!PyInt_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "tileset must be an int");
+        return -1;
+    }
+    self->fThis->setTileset(PyInt_AsLong(value));
+    return 0;
+}
+
 PyMethodDef pyClothingItem_Methods[] = {
+    { "addElement", (PyCFunction)pyClothingItem_addElement, METH_VARARGS,
+      "Params: element\n"
+      "Adds a named element to the clothing item" },
+    { "clearElements", (PyCFunction)pyClothingItem_clearElements, METH_NOARGS,
+      "Removes all elements from the clothing item" },
+    { "delElement", (PyCFunction)pyClothingItem_delElement, METH_VARARGS,
+      "Params: element\n"
+      "Removes an element from the clothing item" },
+    { "getElements", (PyCFunction)pyClothingItem_getElements, METH_NOARGS,
+      "Gets a sequence of all elements in this clothing item" },
+    { "getElementTexture", (PyCFunction)pyClothingItem_getElementTexture, METH_VARARGS,
+      "Params: element, layer\n"
+      "Gets the Key of the texture for the specified element on the given layer" },
     { "getMesh", (PyCFunction)pyClothingItem_getMesh, METH_VARARGS,
       "Params: lod\n"
       "Gets the Key of the mesh for the specified LOD" },
+    { "setElementTexture", (PyCFunction)pyClothingItem_getElementTexture, METH_VARARGS,
+      "Params: element, layer\n"
+      "Sets the Key of the texture for the specified element on the given layer" },
     { "setMesh", (PyCFunction)pyClothingItem_setMesh, METH_VARARGS,
       "Params: lod, mesh\n"
       "Sets the Key of the mesh for the specified LOD" },
@@ -105,10 +291,26 @@ PyMethodDef pyClothingItem_Methods[] = {
 };
 
 PyGetSetDef pyClothingItem_GetSet[] = {
+    { _pycs("accessory"), (getter)pyClothingItem_getAccessory,
+        (setter)pyClothingItem_setAccessory, NULL, NULL },
+    { _pycs("customText"), (getter)pyClothingItem_getCustomText,
+        (setter)pyClothingItem_setCustomText, NULL, NULL },
+    { _pycs("defaultTint1"), (getter)pyClothingItem_getDefaultTint1,
+        (setter)pyClothingItem_setDefaultTint1, NULL, NULL },
+    { _pycs("defaultTint2"), (getter)pyClothingItem_getDefaultTint2,
+        (setter)pyClothingItem_setDefaultTint2, NULL, NULL },
     { _pycs("description"), (getter)pyClothingItem_getDescription,
         (setter)pyClothingItem_setDescription, NULL, NULL },
+    { _pycs("group"), (getter)pyClothingItem_getGroup,
+        (setter)pyClothingItem_setGroup, NULL, NULL },
+    { _pycs("icon"), (getter)pyClothingItem_getIcon,
+        (setter)pyClothingItem_setIcon, NULL, NULL },
     { _pycs("itemName"), (getter)pyClothingItem_getItemName,
         (setter)pyClothingItem_setItemName, NULL, NULL },
+    { _pycs("sortOrder"), (getter)pyClothingItem_getSortOrder,
+        (setter)pyClothingItem_setSortOrder, NULL, NULL },
+    { _pycs("tileset"), (getter)pyClothingItem_getTileset,
+        (setter)pyClothingItem_setTileset, NULL, NULL },
     { NULL, NULL, NULL, NULL, NULL }
 };
 

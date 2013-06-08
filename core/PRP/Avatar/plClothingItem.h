@@ -188,8 +188,14 @@ public:
     /** Remove all elements from the clothing item. */
     void clearElements();
 
-    /** Add a named element to the clothing item. */
-    void addElement(const plString& elementName);
+    /**
+     * Add a named element to the clothing item.
+     * \returns element index
+     */
+    int addElement(const plString& elementName);
+
+    /** Returns the number of elements */
+    int getElementCount() const { return fElementNames.size(); }
 
     /**
      * Sets the texture for element number \a element, at layer \a layer
