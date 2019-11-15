@@ -626,10 +626,12 @@ set(RESMGR_HEADERS
 set(STREAM_SOURCES
     Stream/pyEncryptedStream.cpp
     Stream/pyFileStream.cpp
+    Stream/pyPrcHelper.cpp
     Stream/pyRAMStream.cpp
     Stream/pyStream.cpp
 )
 set(STREAM_HEADERS
+    Stream/pyPrcHelper.h
     Stream/pyStream.h
 )
 
