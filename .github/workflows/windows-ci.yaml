@@ -1,0 +1,84 @@
+name: Windows-CI
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    env:
+      vcpkg-triplet: ${{ matrix.arch }}-windows-${{ matrix.vs }}-hsplasma
+
+    strategy:
+      matrix:
+        arch: ["x86", "x64"]
+        python: ["2.7", "3.5", "3.8"]
+        vs: ["v140", "v141", "v142"]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Bootstrap vcpkg
+        run: |
+          # Make a custom triplet for static linkage but dynamic CRT for this compiler and arch
+          Add-Content -Path "hsplasma-triplet.cmake" -Value "set(VCPKG_TARGET_ARCHITECTURE ${{ matrix.arch }})"
+          Add-Content -Path "hsplasma-triplet.cmake" -Value "set(VCPKG_CRT_LINKAGE dynamic)"
+          Add-Content -Path "hsplasma-triplet.cmake" -Value "set(VCPKG_LIBRARY_LINKAGE static)"
+          Add-Content -Path "hsplasma-triplet.cmake" -Value "set(VCPKG_PLATFORM_TOOLSET ${{ matrix.vs }})"
+
+          cd C:\vcpkg
+          git pull
+          ./bootstrap-vcpkg.bat
+          cp ${{ github.workspace }}/hsplasma-triplet.cmake triplets/${{ env.vcpkg-triplet }}.cmake
+
+      - name: Restore Cache
+        id: cache-vcpkg
+        uses: actions/cache@v1
+        with:
+          path: C:\vcpkg\installed
+          key: os=${{ runner.os }}-vcpkg triplet=${{ hashFiles('hsplasma-triplet.cmake') }} response=${{ hashFiles('vcpkg.txt') }}
+          restore-keys: |
+            os=${{ runner.os }}-vcpkg triplet=${{ hashFiles('hsplasma-triplet.cmake') }}
+
+      - name: Upgrade Dependencies
+        if: steps.cache-vcpkg.outputs.cache-hit == 'true'
+        run: |
+          vcpkg upgrade --no-dry-run --triplet ${{ env.vcpkg-triplet }}
+
+      - name: Build Dependencies
+        run: |
+          vcpkg install `@vcpkg.txt --triplet ${{ env.vcpkg-triplet }}
+          vcpkg list --x-full-desc
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+
+      - name: Build HSPlasma
+        run: |
+          # Because CMake's x86 arch is misnamed...
+          if ("${{ matrix.arch }}" -eq "x86") {
+            $arch = "Win32"
+          } else {
+            $arch = "${{ matrix.arch }}"
+          }
+          Write-Host "Using arch = $arch"
+
+          mkdir build
+          cd build
+          cmake -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
+            -DVCPKG_TARGET_TRIPLET=${{ env.vcpkg-triplet }} `
+            -A $arch `
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}\install `
+            -DCMAKE_PREFIX_PATH=${{ env.pythonLocation }} `
+            -DENABLE_PYTHON=ON -DENABLE_TOOLS=ON -DENABLE_NET=ON -DENABLE_PHYSX=OFF ..
+          cmake --build . --config Release -j 2
+          cmake --build . --config Release --target INSTALL
+
+      - name: Upload Artifacts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.vs }}-${{ matrix.arch }}-py${{ matrix.python }}
+          path: install/*
