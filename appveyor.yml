@@ -1,47 +1,53 @@
 version: '{build}'
 
 environment:
-  global:
-    PREFIX_VERSION: 20180708
-
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
-      VisualStudioVersion: 12.0
+      VS_PATH: "C:\\Program Files (x86)\\Microsoft Visual Studio 12.0\\VC"
       CMAKE_GENERATOR: Visual Studio 12 2013
       PYTHON_PREFIX: C:\Python27
       CMAKE_PARAMS: -DPYTHON_INCLUDE_DIR=C:/Python27/include
         -DPYTHON_LIBRARY=C:/Python27/libs/python27.lib
         -DPYTHON_EXECUTABLE=C:/Python27/python.exe
-      PREFIX_TARGET: vc2013-x86-static
+        -DVCPKG_TARGET_TRIPLET=x86-windows-v120
+      PREFIX_TARGET: vc2013-x86
       DIST_SUFFIX: '%PREFIX_TARGET%-py27'
+      BUILD_DIR: 'build-%PREFIX_TARGET%'
 
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      VS_PATH: "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC"
       VisualStudioVersion: 14.0
       CMAKE_GENERATOR: Visual Studio 14 2015
       PYTHON_PREFIX: C:\Python35
       CMAKE_PARAMS: -DPYTHON_INCLUDE_DIR=C:/Python35/include
         -DPYTHON_LIBRARY=C:/Python35/libs/python35.lib
         -DPYTHON_EXECUTABLE=C:/Python35/python.exe
+        -DVCPKG_TARGET_TRIPLET=x86-windows-static-md
       PREFIX_TARGET: vc2015-x86-static
       DIST_SUFFIX: '%PREFIX_TARGET%-py35'
+      BUILD_DIR: 'build-%PREFIX_TARGET%'
 
 before_build:
-  # Download prefix libs
-  - mkdir build_deps && cd build_deps
-  - curl -LO https://github.com/H-uru/PlasmaPrefix/releases/download/%PREFIX_VERSION%/prefix-%PREFIX_TARGET%.zip
-  - cmake -E tar xf prefix-%PREFIX_TARGET%.zip --format=zip
+  - cd "%APPVEYOR_BUILD_FOLDER%"
+  - git clone https://github.com/microsoft/vcpkg.git --depth 1 -q
 
 build_script:
+  # DBG
+  - "%APPVEYOR_BUILD_FOLDER%\\vcpkg\\bootstrap-vcpkg.bat"
+  - "%APPVEYOR_BUILD_FOLDER%\\vcpkg\\vcpkg.exe install zlib --triplet=x86-windows-v120"
+  # End DBG
+  - "\"%VS_PATH%\\vcvarsall.bat\" x86"
   - cd "%APPVEYOR_BUILD_FOLDER%"
-  - mkdir build && cd build
-  - cmake -G "%CMAKE_GENERATOR%" -DCMAKE_PREFIX_PATH="%APPVEYOR_BUILD_FOLDER%/build_deps/prefix-%PREFIX_TARGET%"
+  - mkdir %BUILD_DIR%
+  - cmake -G "%CMAKE_GENERATOR%"
+      -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%/vcpkg/scripts/buildsystems/vcpkg.cmake"
       -DCMAKE_INSTALL_PREFIX="%APPVEYOR_BUILD_FOLDER%/dist/libhsplasma-%DIST_SUFFIX%"
       -DENABLE_PYTHON=ON -DENABLE_NET=ON -DENABLE_TOOLS=ON -DENABLE_PHYSX=OFF
-      %CMAKE_PARAMS% ..
-  - cmake --build . --config Release
+      %CMAKE_PARAMS% -B %BUILD_DIR% -S .
+  - cmake --build %BUILD_DIR% --config Release
 
 after_build:
-  - cmake --build . --config Release --target INSTALL
+  - cmake --build %BUILD_DIR% --config Release --target INSTALL
   - cd "%APPVEYOR_BUILD_FOLDER%\dist"
   - cmake -E tar cf libhsplasma-%DIST_SUFFIX%.zip --format=zip libhsplasma-%DIST_SUFFIX%
 
@@ -50,5 +56,13 @@ test_script:
   - cd "%APPVEYOR_BUILD_FOLDER%\dist\libhsplasma-%DIST_SUFFIX%\bin"
   - "%PYTHON_PREFIX%\\python.exe -c \"import PyHSPlasma; print(dir(PyHSPlasma))\""
 
+cache:
+  - "%APPVEYOR_BUILD_FOLDER%\\%BUILD_DIR%\\vcpkg_installed"
+
 artifacts:
   - path: dist\libhsplasma-*.zip
+
+# TEMP DBG
+on_finish:
+  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+
