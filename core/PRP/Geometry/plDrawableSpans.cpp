@@ -527,18 +527,26 @@ void plDrawableSpans::calcBounds()
 {
     for (size_t i=0; i<fIcicles.size(); i++) {
         std::vector<plGBufferVertex> verts = getVerts(fIcicles[i]);
-        hsBounds3Ext loc;
-        hsBounds3Ext world;
-
-        world.setFlags(hsBounds3Ext::kAxisAligned);
         auto localPoints = std::make_unique<hsVector3[]>(verts.size());
-        auto worldPoints = std::make_unique<hsVector3[]>(verts.size());
-        for (size_t j = 0; j < verts.size(); j++) {
+        for (size_t j = 0; j < verts.size(); j++)
             localPoints[j] = verts[j].fPos;
-            worldPoints[j] = fIcicles[i]->getLocalToWorld().multPoint(verts[j].fPos);
-        }
+
+        hsBounds3Ext loc;
+        loc.setFlags(hsBounds3Ext::kAxisAligned);
         loc.setFromPoints(verts.size(), localPoints.get());
-        world.setFromPoints(verts.size(), worldPoints.get());
+
+        // Waveset bounds are bloated out to ensure they are drawn.
+        if (fIcicles[i]->getProps() & plSpan::kWaterHeight) {
+            hsVector3 mins = loc.getMins();
+            hsVector3 maxs = loc.getMaxs();
+            mins.Z = fIcicles[i]->getWaterHeight() - 5.0f;
+            maxs.Z = fIcicles[i]->getWaterHeight() + 5.0f;
+            loc += mins;
+            loc += maxs;
+        }
+
+        hsBounds3Ext world = loc;
+        world.transform(fIcicles[i]->getLocalToWorld());
         loc.unalign();
 
         fIcicles[i]->setLocalBounds(loc);
