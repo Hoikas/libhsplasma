@@ -16,6 +16,8 @@
 
 #include "hsBounds.h"
 
+#include "Math/hsMatrix44.h"
+
 /* hsBounds */
 void hsBounds::read(hsStream* S)
 {
@@ -321,6 +323,72 @@ void hsBounds3Ext::unalign()
         z = 1.0;
     }
     fAxes[2] = hsVector3(0.0, 0.0, z);
+}
+
+void hsBounds3Ext::transform(const hsMatrix44& mat)
+{
+    if (fExtFlags & kAxisAligned) {
+        fExtFlags = 0;
+
+        fCorner = mat.multPoint(fMins);
+        float span = fMaxs.X - fMins.X;
+        if (span < 0.00001f) {
+            fExtFlags |= kAxisZeroZero;
+            span = 1.f;
+        }
+        {
+            hsVector3 v(span, 0.0f, 0.0f);
+            fAxes[0] = mat.multVector(v);
+            span = fMaxs.Y - fMins.Y;
+            if (span < 0.00001f) {
+                fExtFlags |= kAxisOneZero;
+                span = 1.f;
+            }
+        }
+        {
+            hsVector3 v(0.0f, span, 0.0f);
+            fAxes[1] = mat.multVector(v);
+            span = fMaxs.Z - fMins.Z;
+            if (span < 0.00001f) {
+                fExtFlags |= kAxisTwoZero;
+                span = 1.f;
+            }
+        }
+        {
+            hsVector3 v(0.0f, 0.0f, span);
+            fAxes[2] = mat.multVector(v);
+        }
+
+    } else {
+        fCorner = mat.multPoint(fCorner);
+        fAxes[0] = mat.multVector(fAxes[0]);
+        fAxes[1] = mat.multVector(fAxes[1]);
+        fAxes[2] = mat.multVector(fAxes[2]);
+
+        fExtFlags &= kAxisZeroZero | kAxisOneZero | kAxisTwoZero;
+    }
+    updateMinsMaxs();
+    updateCenter();
+}
+
+inline static void IUpdateMinMax(float axis, float& min, float& max)
+{
+    if (axis < 0.0f)
+        min += axis;
+    else
+        max += axis;
+}
+
+void hsBounds3Ext::updateMinsMaxs()
+{
+    fMins = fMaxs = fCorner;
+    for (int i = 0; i < 3; i++) {
+        if (!isAxisZero(i)) {
+            IUpdateMinMax(fAxes[i].X, fMins.X, fMaxs.X);
+            IUpdateMinMax(fAxes[i].Y, fMins.Y, fMins.Y);
+            IUpdateMinMax(fAxes[i].Z, fMins.Z, fMins.Z);
+        }
+    }
 }
 
 

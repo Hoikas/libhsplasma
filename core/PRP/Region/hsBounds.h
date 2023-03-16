@@ -21,6 +21,7 @@
 #include "Math/hsGeometry3.h"
 
 typedef std::array<hsVector3, 8> hsBounds3Corners;
+struct hsMatrix44;
 
 class HSPLASMA_EXPORT hsBounds
 {
@@ -134,6 +135,7 @@ public:
     hsVector3 getAxis(size_t idx) const { return fAxes[idx]; }
     hsFloatPoint2 getDist(size_t idx) const { return fDists[idx]; }
     float getRadius() const { return fRadius; }
+    bool isAxisZero(size_t idx) const { return (fExtFlags & (1 << (20 + idx))) != 0; };
 
     void unalign();
     void setFlags(unsigned int flags) { fExtFlags = flags; }
@@ -141,6 +143,8 @@ public:
     void setAxis(size_t idx, const hsVector3& ax) { fAxes[idx] = ax; }
     void setDist(size_t idx, const hsFloatPoint2& dist) { fDists[idx] = dist; }
     void setRadius(float rad) { fRadius = rad; }
+    void transform(const hsMatrix44& mat);
+    void updateMinsMaxs();
 };
 
 
